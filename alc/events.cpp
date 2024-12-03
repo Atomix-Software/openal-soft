@@ -3,14 +3,29 @@
 
 #include "events.h"
 
-#include <optional>
-
 #include "alspan.h"
 #include "core/logging.h"
 #include "device.h"
+#include "fmt/core.h"
 
 
 namespace {
+
+ALCenum EnumFromEventType(const alc::EventType type)
+{
+    switch(type)
+    {
+    case alc::EventType::DefaultDeviceChanged: return ALC_EVENT_TYPE_DEFAULT_DEVICE_CHANGED_SOFT;
+    case alc::EventType::DeviceAdded: return ALC_EVENT_TYPE_DEVICE_ADDED_SOFT;
+    case alc::EventType::DeviceRemoved: return ALC_EVENT_TYPE_DEVICE_REMOVED_SOFT;
+    case alc::EventType::Count: break;
+    }
+    throw std::runtime_error{fmt::format("Invalid EventType: {}", int{al::to_underlying(type)})};
+}
+
+} // namespace
+
+namespace alc {
 
 std::optional<alc::EventType> GetEventType(ALCenum type)
 {
@@ -22,22 +37,6 @@ std::optional<alc::EventType> GetEventType(ALCenum type)
     }
     return std::nullopt;
 }
-
-ALCenum EnumFromEventType(const alc::EventType type)
-{
-    switch(type)
-    {
-    case alc::EventType::DefaultDeviceChanged: return ALC_EVENT_TYPE_DEFAULT_DEVICE_CHANGED_SOFT;
-    case alc::EventType::DeviceAdded: return ALC_EVENT_TYPE_DEVICE_ADDED_SOFT;
-    case alc::EventType::DeviceRemoved: return ALC_EVENT_TYPE_DEVICE_REMOVED_SOFT;
-    case alc::EventType::Count: break;
-    }
-    throw std::runtime_error{"Invalid EventType: "+std::to_string(al::to_underlying(type))};
-}
-
-} // namespace
-
-namespace alc {
 
 void Event(EventType eventType, DeviceType deviceType, ALCdevice *device, std::string_view message) noexcept
 {
@@ -73,10 +72,10 @@ FORCE_ALIGN ALCboolean ALC_APIENTRY alcEventControlSOFT(ALCsizei count, const AL
     alc::EventBitSet eventSet{0};
     for(ALCenum type : al::span{events, static_cast<ALCuint>(count)})
     {
-        auto etype = GetEventType(type);
+        auto etype = alc::GetEventType(type);
         if(!etype)
         {
-            WARN("Invalid event type: 0x%04x\n", type);
+            WARN("Invalid event type: 0x{:04x}", type);
             alcSetError(nullptr, ALC_INVALID_ENUM);
             return ALC_FALSE;
         }

@@ -1,9 +1,9 @@
 #ifndef CORE_LOGGING_H
 #define CORE_LOGGING_H
 
-#include <stdio.h>
+#include <cstdio>
 
-#include "opthelpers.h"
+#include "fmt/core.h"
 
 
 enum class LogLevel {
@@ -22,12 +22,13 @@ using LogCallbackFunc = void(*)(void *userptr, char level, const char *message, 
 void al_set_log_callback(LogCallbackFunc callback, void *userptr);
 
 
-#ifdef __USE_MINGW_ANSI_STDIO
-[[gnu::format(gnu_printf,2,3)]]
-#else
-[[gnu::format(printf,2,3)]]
-#endif
-void al_print(LogLevel level, const char *fmt, ...);
+void al_print_impl(LogLevel level, const std::string &msg);
+
+template<typename ...Args>
+void al_print(LogLevel level, fmt::format_string<Args...> fmt, Args&& ...args) noexcept
+try {
+    al_print_impl(level, fmt::format(std::move(fmt), std::forward<Args>(args)...));
+} catch(...) { }
 
 #define TRACE(...) al_print(LogLevel::Trace, __VA_ARGS__)
 

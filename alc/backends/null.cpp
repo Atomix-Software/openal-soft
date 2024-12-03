@@ -31,7 +31,6 @@
 #include <thread>
 
 #include "althrd_setname.h"
-#include "almalloc.h"
 #include "core/device.h"
 #include "core/helpers.h"
 
@@ -41,8 +40,9 @@ namespace {
 using std::chrono::seconds;
 using std::chrono::milliseconds;
 using std::chrono::nanoseconds;
+using namespace std::string_view_literals;
 
-constexpr char nullDevice[] = "No Output";
+[[nodiscard]] constexpr auto GetDeviceName() noexcept { return "No Output"sv; }
 
 
 struct NullBackend final : public BackendBase {
@@ -57,8 +57,6 @@ struct NullBackend final : public BackendBase {
 
     std::atomic<bool> mKillNow{true};
     std::thread mThread;
-
-    DEF_NEWDEL(NullBackend)
 };
 
 int NullBackend::mixerProc()
@@ -66,7 +64,7 @@ int NullBackend::mixerProc()
     const milliseconds restTime{mDevice->UpdateSize*1000/mDevice->Frequency / 2};
 
     SetRTPriority();
-    althrd_setname(MIXER_THREAD_NAME);
+    althrd_setname(GetMixerThreadName());
 
     int64_t done{0};
     auto start = std::chrono::steady_clock::now();
@@ -108,12 +106,12 @@ int NullBackend::mixerProc()
 void NullBackend::open(std::string_view name)
 {
     if(name.empty())
-        name = nullDevice;
-    else if(name != nullDevice)
-        throw al::backend_exception{al::backend_error::NoDevice, "Device name \"%.*s\" not found",
-            static_cast<int>(name.length()), name.data()};
+        name = GetDeviceName();
+    else if(name != GetDeviceName())
+        throw al::backend_exception{al::backend_error::NoDevice, "Device name \"{}\" not found",
+            name};
 
-    mDevice->DeviceName = name;
+    mDeviceName = name;
 }
 
 bool NullBackend::reset()
@@ -130,7 +128,7 @@ void NullBackend::start()
     }
     catch(std::exception& e) {
         throw al::backend_exception{al::backend_error::DeviceError,
-            "Failed to start mixing thread: %s", e.what()};
+            "Failed to start mixing thread: {}", e.what()};
     }
 }
 
@@ -150,19 +148,17 @@ bool NullBackendFactory::init()
 bool NullBackendFactory::querySupport(BackendType type)
 { return (type == BackendType::Playback); }
 
-std::string NullBackendFactory::probe(BackendType type)
+auto NullBackendFactory::enumerate(BackendType type) -> std::vector<std::string>
 {
-    std::string outnames;
     switch(type)
     {
     case BackendType::Playback:
-        /* Includes null char. */
-        outnames.append(nullDevice, sizeof(nullDevice));
-        break;
+        /* Include null char. */
+        return std::vector{std::string{GetDeviceName()}};
     case BackendType::Capture:
         break;
     }
-    return outnames;
+    return {};
 }
 
 BackendPtr NullBackendFactory::createBackend(DeviceBase *device, BackendType type)
